@@ -17,6 +17,8 @@ import numpy as np
 import pennylane as qml
 import pytest
 
+from braket.pennylane_plugin.ops import GPi
+
 np.random.seed(42)
 
 

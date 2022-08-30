@@ -27,8 +27,9 @@ setup(
     packages=find_namespace_packages(where="src", exclude=("test",)),
     package_dir={"": "src"},
     install_requires=[
-        "amazon-braket-sdk>=1.29.2",
+        "amazon-braket-sdk",#>=1.29.2",
         "pennylane>=0.23.0",
+        "pennylane_ionq",
     ],
     entry_points={
         "pennylane.plugins": [

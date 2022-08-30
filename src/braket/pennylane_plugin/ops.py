@@ -28,7 +28,6 @@ These operations can be imported via
     from braket.pennylane_plugin import (
         ECR,
         PSWAP,
-        XY,
         CPhaseShift00,
         CPhaseShift01,
         CPhaseShift10,
@@ -43,7 +42,6 @@ Operations
     CPhaseShift10
     ECR
     PSWAP
-    XY
 
 Code details
 ~~~~~~~~~~~~
@@ -308,3 +306,66 @@ class PSWAP(Operation):
     def adjoint(self):
         (phi,) = self.parameters
         return PSWAP(-phi, wires=self.wires)
+
+
+class GPi(Operation):
+    r""" GPI(phi, wires)
+
+    .. math:: \mathtt{GPI}(\phi) = \begin{bmatrix}
+            1 & 0 & 0 & 0 \\
+            0 & 0 & e^{-i \phi} & 0 \\
+            0 & e^{i \phi} & 0 & 0 \\
+            0 & 0 & 0 & 1
+        \end{bmatrix}.
+
+    **Details:**
+
+    * Number of wires: 1
+    * Number of parameters: 1
+    * Gradient recipe:
+
+    .. math::
+        \frac{d}{d \phi} \mathtt{GPi}(\phi)
+        = \frac{1}{2} \left[ \mathtt{GPi}(\phi + \pi / 2) - \mathtt{PSWAP}(\phi - \pi / 2) \right]
+
+    Args:
+        phi (float): the phase angle
+        wires (int): the subsystem the gate acts on
+        do_queue (bool): Indicates whether the operator should be
+            immediately pushed into the Operator queue (optional)
+        id (str or None): String representing the operation (optional)
+    """
+    num_params = 1
+    num_wires = 1
+    grad_method = "A"
+    # parameter_frequencies = [(np.pi,)]
+
+    def __init__(self, phi, wires, do_queue=True, id=None):
+        super().__init__(phi, wires=wires, do_queue=do_queue, id=id)
+
+    def generator(self):
+        phi = self.parameters[0]
+        return qml.Hermitian(1/2 * np.array([
+            [np.pi, -np.pi * np.exp(-1j * phi)],
+            [-np.pi * np.exp(1j * phi), np.pi],
+        ]), wires=self.wires)
+
+    # @staticmethod
+    # def compute_decomposition(phi, wires):
+    #     return [
+    #         GPi(phi, wires=wires),
+    #     ]
+
+    @staticmethod
+    def compute_matrix(phi):
+        if qml.math.get_interface(phi) == "tensorflow":
+            phi = qml.math.cast_like(phi, 1j)
+
+        return np.array([
+            [0, np.exp(-1j * phi)],
+            [np.exp(1j * phi), 0],
+        ])
+
+    def adjoint(self):
+        (phi,) = self.parameters
+        return GPi(phi + np.pi, wires=self.wires)
