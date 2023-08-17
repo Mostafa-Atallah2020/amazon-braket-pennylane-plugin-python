@@ -24,7 +24,11 @@ from braket.aws import AwsDevice, AwsDeviceType, AwsQuantumTask, AwsQuantumTaskB
 from braket.circuits import Circuit, FreeParameter, Gate, Noise, Observable, result_types
 from braket.circuits.noise_model import GateCriteria, NoiseModel, NoiseModelInstruction
 from braket.device_schema import DeviceActionType
+from braket.device_schema.gate_model_qpu_paradigm_properties_v1 import (
+    GateModelQpuParadigmProperties,
+)
 from braket.device_schema.openqasm_device_action_properties import OpenQASMDeviceActionProperties
+from braket.device_schema.pulse.pulse_device_action_properties_v1 import PulseDeviceActionProperties
 from braket.device_schema.simulators import GateModelSimulatorDeviceCapabilities
 from braket.devices import LocalSimulator
 from braket.simulator import BraketSimulator
@@ -32,6 +36,7 @@ from braket.task_result import GateModelTaskResult
 from braket.tasks import GateModelQuantumTaskResult
 from pennylane import QuantumFunctionError, QubitDevice
 from pennylane import numpy as np
+from pennylane.pulse import ParametrizedEvolution
 from pennylane.tape import QuantumScript, QuantumTape
 
 import braket.pennylane_plugin.braket_device
@@ -669,12 +674,15 @@ def test_execute_tracker(mock_run):
     callback.assert_called_with(latest=latest, history=history, totals=totals)
 
 
-def _set_name(self, *args, **kwargs):
+def _aws_device_mock_init(self, *args, **kwargs):
+    self._arn = args[0]
+    self._properties = None
+    self._ports = None
     self._name = "name"
     return None
 
 
-@patch.object(AwsDevice, "__init__", _set_name)
+@patch.object(AwsDevice, "__init__", _aws_device_mock_init)
 @patch.object(AwsDevice, "aws_session", new_callable=mock.PropertyMock)
 @patch.object(AwsDevice, "type", new_callable=mock.PropertyMock)
 @patch.object(AwsDevice, "properties")
@@ -963,6 +971,11 @@ def test_pl_to_braket_circuit_hamiltonian_tensor_product_terms():
     braket_circuit = dev._pl_to_braket_circuit(tape)
 
     assert braket_circuit_true == braket_circuit
+
+
+def test_parametrized_evolution_in_oqc_lucy_supported_ops():
+    dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+    assert "ParametrizedEvolution" in dev.operations
 
 
 def test_bad_statistics():
@@ -1843,7 +1856,7 @@ class DummyCircuitSimulator(BraketSimulator):
         return GateModelSimulatorDeviceCapabilities.parse_obj(input_json)
 
 
-@patch.object(AwsDevice, "__init__", _set_name)
+@patch.object(AwsDevice, "__init__", _aws_device_mock_init)
 @patch.object(AwsDevice, "aws_session", new_callable=mock.PropertyMock)
 @patch.object(AwsDevice, "type", new_callable=mock.PropertyMock)
 @patch.object(AwsDevice, "properties")
@@ -1879,12 +1892,10 @@ def _aws_device(
         parametrize_differentiable=parametrize_differentiable,
         **kwargs,
     )
-    # needed by the BraketAwsQubitDevice.capabilities function
-    dev._device._arn = device_arn
     return dev
 
 
-@patch.object(AwsDevice, "__init__", _set_name)
+@patch.object(AwsDevice, "__init__", _aws_device_mock_init)
 @patch.object(AwsDevice, "aws_session", new_callable=mock.PropertyMock)
 @patch.object(AwsDevice, "properties")
 def _bad_aws_device(properties_mock, session_mock, wires, **kwargs):
@@ -2055,6 +2066,459 @@ def test_execute_with_noise_model(
         poll_interval_seconds=AwsQuantumTask.DEFAULT_RESULTS_POLL_INTERVAL,
         inputs={},
     )
+
+
+OQC_PULSE_PROPERTIES = json.dumps(
+    {
+        "braketSchemaHeader": {
+            "name": "braket.device_schema.pulse.pulse_device_action_properties",
+            "version": "1",
+        },
+        "supportedQhpTemplateWaveforms": {},
+        "ports": {},
+        "supportedFunctions": {},
+        "frames": {
+            "q0_drive": {
+                "frameId": "q0_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q0_second_state": {
+                "frameId": "q0_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q1_drive": {
+                "frameId": "q1_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q1_second_state": {
+                "frameId": "q1_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q2_drive": {
+                "frameId": "q2_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q2_second_state": {
+                "frameId": "q2_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q3_drive": {
+                "frameId": "q3_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q3_second_state": {
+                "frameId": "q3_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q4_drive": {
+                "frameId": "q4_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q4_second_state": {
+                "frameId": "q4_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q5_drive": {
+                "frameId": "q5_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q5_second_state": {
+                "frameId": "q5_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q6_drive": {
+                "frameId": "q6_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q6_second_state": {
+                "frameId": "q6_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q7_drive": {
+                "frameId": "q7_drive",
+                "portId": "channel_15",
+                "frequency": 4.6e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+            "q7_second_state": {
+                "frameId": "q7_second_state",
+                "portId": "channel_15",
+                "frequency": 4.5e9,
+                "centerFrequency": 4360000000.0,
+                "phase": 0.0,
+                "associatedGate": None,
+                "qubitMappings": [0],
+                "qhpSpecificProperties": None,
+            },
+        },
+        "supportsLocalPulseElements": False,
+        "supportsDynamicFrames": True,
+        "supportsNonNativeGatesWithPulses": True,
+        "validationParameters": {
+            "MAX_SCALE": 1.0,
+            "MAX_AMPLITUDE": 1.0,
+            "PERMITTED_FREQUENCY_DIFFERENCE": 1.0,
+            "MIN_PULSE_LENGTH": 8e-09,
+            "MAX_PULSE_LENGTH": 0.00012,
+        },
+    }
+)
+
+OQC_PARADIGM_PROPERTIES = json.dumps(
+    {
+        "braketSchemaHeader": {
+            "name": "braket.device_schema.gate_model_qpu_paradigm_properties",
+            "version": "1",
+        },
+        "connectivity": {
+            "fullyConnected": False,
+            "connectivityGraph": {
+                "0": ["1", "7"],
+                "1": ["2"],
+                "2": ["3"],
+                "4": ["3", "5"],
+                "6": ["5"],
+                "7": ["6"],
+            },
+        },
+        "qubitCount": 8,
+        "nativeGateSet": ["ecr", "i", "rz", "v", "x"],
+    }
+)
+
+
+class TestPulseFunctionality:
+    """Test the functions specific to supporting pulse programming via Pennylane"""
+
+    @pytest.mark.parametrize(
+        "frameId, expected_result", [("q0_second_state", False), ("q0_drive", True)]
+    )
+    def test_single_frame_filter_oqc_lucy(self, frameId, expected_result):
+        """Test that _is_single_qubit_01_frame successfuly identifies whether a string matches
+        the pattern for a 01 drive frame"""
+        dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+        assert dev._is_single_qubit_01_frame(frameId) == expected_result
+
+    @pytest.mark.parametrize(
+        "frameId, expected_result", [("q0_second_state", True), ("q0_drive", False)]
+    )
+    def test_single_frame_filter_oqc_lucy_12(self, frameId, expected_result):
+        """Test that _is_single_qubit_12_frame successfuly identifies whether a string matches
+        the pattern for a 12 drive frame"""
+        dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+        assert dev._is_single_qubit_12_frame(frameId) == expected_result
+
+    def test_frame_filters_raise_error_if_not_oqc_lucy(self):
+        """Test that the functions used to access the pulse frames raise a clear error for devices
+        where frame access is not available through the plugin"""
+        dev = _aws_device(wires=2, device_arn="baz")
+
+        with pytest.raises(
+            NotImplementedError,
+            match="Single-qubit drive frame for pulse control not defined for device",
+        ):
+            dev._is_single_qubit_01_frame("q0_drive")
+
+        with pytest.raises(
+            NotImplementedError,
+            match="Second excitation drive frame for pulse control not defined for device",
+        ):
+            dev._is_single_qubit_12_frame("q0_second_state")
+
+        with pytest.raises(NotImplementedError, match=""):
+            dev._get_frames(filter=None, wires=[0, 1, 2])
+
+    def test_get_frames(self):
+        """Test that the dev._get_frames method returns the expected results"""
+        dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+
+        class DummyProperties:
+            def __init__(self):
+                self.pulse = PulseDeviceActionProperties.parse_raw(OQC_PULSE_PROPERTIES)
+
+        dev._device._properties = DummyProperties()
+
+        frames_01 = dev._get_frames(filter=dev._is_single_qubit_01_frame, wires=[0, 1, 2])
+        frames_12 = dev._get_frames(filter=dev._is_single_qubit_12_frame, wires=[0, 1, 2])
+
+        assert len(frames_01) == len(frames_12) == 3
+        assert list(frames_01.keys()) == [0, 1, 2]
+        assert list(frames_12.keys()) == [0, 1, 2]
+
+    def test_settings_for_unsupported_device_raises_error(self):
+        """Test that accessing dev.pulse_settings for a device where this is not defined
+        raises an error"""
+        dev = _aws_device(wires=2, device_arn="baz")
+
+        with pytest.raises(
+            NotImplementedError,
+            match="The pulse_settings property for pulse control is not defined for",
+        ):
+            dev.pulse_settings
+
+    def test_settings(self):
+        """Test that the pulse_settings property retrieves the relevant data from the device
+        pulse and paradigm properties"""
+        dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+
+        class DummyProperties:
+            def __init__(self):
+                self.pulse = PulseDeviceActionProperties.parse_raw(OQC_PULSE_PROPERTIES)
+                self.paradigm = GateModelQpuParadigmProperties.parse_raw(OQC_PARADIGM_PROPERTIES)
+
+        dev._device._properties = DummyProperties()
+
+        settings = dev.pulse_settings
+        assert settings["connections"] == [
+            (0, 1),
+            (0, 7),
+            (1, 2),
+            (2, 3),
+            (4, 3),
+            (4, 5),
+            (6, 5),
+            (7, 6),
+        ]
+        assert settings["wires"] == [0, 1, 2, 3, 4, 5, 6, 7]
+        assert np.allclose(settings["qubit_freq"], 4.6)
+        assert np.allclose(settings["anharmonicity"], 0.1)
+
+
+def get_oqc_device():
+    dev = _aws_device(wires=2, device_arn="arn:aws:braket:eu-west-2::device/qpu/oqc/Lucy")
+
+    class DummyProperties:
+        def __init__(self):
+            self.pulse = PulseDeviceActionProperties.parse_raw(OQC_PULSE_PROPERTIES)
+            self.paradigm = GateModelQpuParadigmProperties.parse_raw(OQC_PARADIGM_PROPERTIES)
+
+    dev._device._properties = DummyProperties()
+
+    return dev
+
+
+class TestPulseValidation:
+    def test_op_with_interaction_term_raises_a_warning(self):
+        """Check that a warning is raised if the settings from the interaction term
+        on the ParametrizedEvolution don't match the device constants"""
+
+        dev = get_oqc_device()
+
+        # some 3 qubit device
+        H = qml.pulse.transmon_interaction(
+            qubit_freq=[4.3, 4.6, 4.8],
+            connections=[(1, 2), (1, 3)],
+            coupling=[0.02, 0.03],
+            wires=[0, 1, 2],
+        )
+        # 4.3 GHz drive on wire 0 with phase=0 and amplitude=0.2
+        H += qml.pulse.transmon_drive(0.2, 0, 4.3, wires=[0])
+
+        op = ParametrizedEvolution(H, [], t=10)
+
+        with pytest.warns(
+            UserWarning,
+            match="The ParametrizedEvolution contains settings from an interaction term",
+        ):
+            dev._validate_pulse_parameters(op)
+
+    def test_that_check_validity_calls_pulse_validation_function(self, mocker):
+        """Test that check_validity calls _validate_pulse_parameters if the
+        queue contains a ParametrizedEvolution"""
+
+        dev = get_oqc_device()
+
+        spy = mocker.spy(dev, "_validate_pulse_parameters")
+
+        H = qml.pulse.transmon_drive(0.2, 0, 4.3, wires=[0])
+        op = ParametrizedEvolution(H, [], t=10)
+
+        # one call
+        dev.check_validity([op], [])
+        spy.assert_called_once_with(op)
+
+    def test_callable_phase_raises_error(self):
+        """Test that a callable phase (other than qml.pulse.constant) raises an error"""
+        dev = get_oqc_device()
+
+        def f1(p, t):
+            return p * t
+
+        H = qml.pulse.transmon_drive(0.2, f1, 4.3, wires=[0])
+        op = ParametrizedEvolution(H, [3], t=10)
+
+        with pytest.raises(RuntimeError, match="Expected all phases to be constants"):
+            dev._validate_pulse_parameters(op)
+
+    def test_callable_frequency_raises_error(self):
+        """Test that a callable frequency (other than qml.pulse.constant) raises an error"""
+
+        dev = get_oqc_device()
+
+        def f1(p, t):
+            return p * t
+
+        H = qml.pulse.transmon_drive(0.2, 0, f1, wires=[0])
+        op = ParametrizedEvolution(H, [3], t=10)
+
+        with pytest.raises(RuntimeError, match="Expected all frequencies to be constants"):
+            dev._check_pulse_frequency_validity(op)
+
+    def test_constant_callable_phase_passes_validation(self):
+        """Test that the qml.pulse.constant function is an acceptable value for phase,
+        i.e. that no error is raised in validation"""
+
+        dev = get_oqc_device()
+
+        def f1(p, t):
+            return p[0] * t + p[1]
+
+        H = qml.pulse.transmon_drive(f1, qml.pulse.constant, 4.3, wires=[0])
+        op = ParametrizedEvolution(H, [[1.2, 2.2], 3], t=10)
+
+        dev._validate_pulse_parameters(op)
+
+    def test_constant_callable_frequency_passes_validation(self):
+        """Test that the qml.pulse.constant function is an acceptable value for frequency,
+        i.e. no error is raised in validation"""
+
+        dev = get_oqc_device()
+
+        def f1(p, t):
+            return p[0] * t + p[1]
+
+        H = qml.pulse.transmon_drive(f1, 0, qml.pulse.constant, wires=[0])
+        op = ParametrizedEvolution(H, [[0, 1], 4.5], t=10)
+
+        dev._check_pulse_frequency_validity(op)
+        dev._validate_pulse_parameters(op)
+
+    def test_frequecy_out_of_range_raises_error(self):
+        """Test that a frequency outside the acceptable frequency range of the channel
+        raises an error when the frequency is defined as a number"""
+
+        dev = get_oqc_device()
+
+        H = qml.pulse.transmon_drive(0.2, 0, 6, wires=[0])
+        op = ParametrizedEvolution(H, [], t=10)
+
+        with pytest.raises(RuntimeError, match="Frequency range for wire"):
+            dev._validate_pulse_parameters(op)
+
+        with pytest.raises(RuntimeError, match="Frequency range for wire"):
+            dev._check_pulse_frequency_validity(op)
+
+    def test_constant_callable_frequency_out_of_range_raises_error(self):
+        """Test that a frequency outside the acceptable frequency range of the channel
+        raises an error when the frequency is defined via qml.pulse.constant and a passed
+        parameter"""
+        dev = get_oqc_device()
+
+        H = qml.pulse.transmon_drive(0.2, 0, qml.pulse.constant, wires=[0])
+        op = ParametrizedEvolution(H, [6], t=10)
+
+        with pytest.raises(RuntimeError, match="Frequency range for wire"):
+            dev._check_pulse_frequency_validity(op)
+
+    def test_multiple_simultaneous_pulses_on_a_wire_raises_error(self):
+        """Test that a ParameterizedEvolution operator that tries to put multiple
+        pulses on a single qubit simultaneously raises an error"""
+        dev = get_oqc_device()
+
+        H = qml.pulse.transmon_drive(0.2, 0, 4.3, wires=[0])
+        H += qml.pulse.transmon_drive(0.5, 0, 4.1, wires=[0])
+        op = ParametrizedEvolution(H, [3], t=10)
+
+        with pytest.raises(RuntimeError, match="Multiple waveforms assigned to wire"):
+            dev._validate_pulse_parameters(op)
 
 
 @patch.object(AwsDevice, "run_batch")
