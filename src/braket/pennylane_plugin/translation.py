@@ -137,6 +137,7 @@ def supported_operations(device: Device, verbatim: bool = False) -> frozenset[st
     return translated
 
 
+@cache
 def translate_operation(
     operation: Operation,
     use_unique_params: bool = False,
